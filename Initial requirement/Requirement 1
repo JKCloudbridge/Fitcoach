@@ -1,0 +1,556 @@
+Think of a nice android/iOS app.
+You are a software developer who spotted a gym and their clients scenario. Can we have a app which can track the clients work out on daily basis and trainer can upload the workout card.
+The app can also be connected to watches which can track steps and other stuff.
+
+Is this doable what can be the database? Supabase?
+Think of all such tech parameters plus the feasibility and value of app.
+
+FitCoach Platform — Data Model & API Documentation (v3)
+Backend: Supabase (Postgres + Auth + Storage + Realtime + Edge Functions) Revision history:
+
+v2 — architecture review: template/assignment split, snapshot-based versioning, organization_members join table, explicit RLS patterns, isolated wearable credentials, real messaging tables, media as FK references. Deliberately deferred: full version-history tables, full session/set-log granularity — see §8.
+v3 — adds habit tracking (§9), coach/gym seat licensing and the invite-based connection flow (§10), and the paid Programs marketplace with trainer payouts (§11). See §14 for the consolidated list of business and technical decisions still open.
+1. System Overview
+Three coaching modes share one model, differentiated by visibility on workout_cards, org_id, and type on coaching_relationships. A fourth concept — assignment — now sits between a card and a client, whether the coaching is trainer-driven or the client self-started a card from Discover:
+
+Mode	Relationship	Card visibility	Assignment source
+Private coaching	trainer ↔ client, no org	private	trainer_assigned
+Gym coaching	trainer ↔ client, shared org_id	gym_only	trainer_assigned
+Public library, self-directed	none required	public	self_saved
+A client can hold all three at once. Logging always happens against an assignment, never against the template directly — that's what keeps Progress unified regardless of how the workout got into the client's hands, and what stops a trainer's later edit to a template from rewriting a client's history.
+
+2. Entity Relationship Summary
+organizations 1───* organization_members *───1 auth.users
+organizations 1───* coaching_relationships
+
+trainer_profiles 1───* workout_cards
+workout_cards 1───* exercises
+workout_cards 1───* card_stats (1:1)
+
+workout_cards 1───* workout_assignments
+coaching_relationships 1───* workout_assignments  (nullable — null for self_saved)
+workout_assignments 1───* assignment_exercises
+assignment_exercises 1───* workout_logs
+
+client_profiles *───* workout_cards   (via saved_cards — bookmark only, no logging)
+client_profiles 1───* wearable_connections
+client_profiles 1───* wearable_metrics
+
+conversations 1───* conversation_members
+conversations 1───* messages
+
+trainer_profiles 1───* media_assets
+workout_cards 1───* card_reports (moderation)
+All profiles tables extend Supabase auth.users via a 1:1 id FK.
+
+3. Full Database Schema
+3.1 organizations
+Column	Type	Notes
+id	uuid, PK	
+name	text, not null	
+slug	text, unique	
+plan_tier	text	free / pro / enterprise
+owner_id	uuid, FK → auth.users	convenience pointer; source of truth for who has access is organization_members
+created_at	timestamptz	
+3.2 organization_members — new
+Resolves the "one user, one gym" limitation: a trainer can be independent and staff a gym; a client can belong to more than one gym.
+
+Column	Type	Notes
+id	uuid, PK	
+org_id	uuid, FK → organizations.id	
+user_id	uuid, FK → auth.users.id	
+role	text	owner / admin / trainer / client
+status	text	active / invited / removed
+joined_at	timestamptz	
+Unique: (org_id, user_id).
+
+3.3 trainer_profiles
+Column	Type	Notes
+id	uuid, PK, FK → auth.users.id	
+org_id	uuid, FK → organizations.id, nullable	primary/default org only — informational for UI; actual access is organization_members
+display_name	text	
+bio	text	
+certifications	text[]	
+is_verified	boolean	default false
+avatar_url	text	
+created_at	timestamptz	
+3.4 client_profiles
+Column	Type	Notes
+id	uuid, PK, FK → auth.users.id	
+org_id	uuid, FK → organizations.id, nullable	primary/default org only, same caveat as above
+display_name	text	
+date_of_birth	date	
+height_cm / weight_kg	numeric	
+goals	text[]	
+avatar_url	text	
+created_at	timestamptz	
+3.5 coaching_relationships
+Column	Type	Notes
+id	uuid, PK	
+trainer_id	uuid, FK → trainer_profiles.id	
+client_id	uuid, FK → client_profiles.id	
+org_id	uuid, FK → organizations.id, nullable	set for gym-type
+type	text	private | gym
+status	text	active | paused | ended
+started_at / ended_at	timestamptz	
+Unique: (trainer_id, client_id) where status = 'active'.
+
+3.6 workout_cards
+The template. No longer carries client_id — a card is never "for" one client at the schema level; assignment does that job.
+
+Column	Type	Notes
+id	uuid, PK	
+trainer_id	uuid, FK → trainer_profiles.id	author
+org_id	uuid, FK → organizations.id, nullable	required if visibility = gym_only
+title / description	text	
+visibility	text	public | private | gym_only
+cover_media_id / intro_media_id	uuid, FK → media_assets.id, nullable	replaces raw URL columns
+tags	text[]	
+difficulty	text	beginner | intermediate | advanced
+is_published	boolean	default false
+moderation_status	text	pending | approved | flagged | removed (public only)
+created_at / updated_at	timestamptz	
+3.7 exercises
+The template's exercise list.
+
+Column	Type	Notes
+id	uuid, PK	
+card_id	uuid, FK → workout_cards.id	
+name	text, not null	
+order_index	int	
+sets	int	
+reps	text	
+weight_kg	numeric, nullable	
+rest_seconds	int	
+demo_media_id	uuid, FK → media_assets.id, nullable	replaces video_url
+notes	text	
+3.8 workout_assignments — new
+The link between a template and a client. Created either by a trainer (assign-workout-card Edge Function) or by the client themself (follow-public-card Edge Function, when starting a Discover card).
+
+Column	Type	Notes
+id	uuid, PK	
+card_id	uuid, FK → workout_cards.id	
+trainer_id	uuid, FK → trainer_profiles.id, nullable	null when source = self_saved
+client_id	uuid, FK → client_profiles.id	
+org_id	uuid, FK → organizations.id, nullable	
+relationship_id	uuid, FK → coaching_relationships.id, nullable	null when self-directed
+source	text	trainer_assigned | self_saved
+assigned_at	timestamptz	
+start_date / due_date	date, nullable	
+status	text	active | completed | archived
+3.9 assignment_exercises — new
+A snapshot of exercises, copied at the moment of assignment. Editing it never touches the source template, and editing the template later never touches an existing assignment — this is the MVP-friendly stand-in for full version history (see §8).
+
+Column	Type	Notes
+id	uuid, PK	
+assignment_id	uuid, FK → workout_assignments.id	
+source_exercise_id	uuid, FK → exercises.id, nullable	traceability back to the template row it was copied from
+order_index	int	
+name	text	
+sets	int	
+reps	text	
+weight_kg	numeric, nullable	client-specific — a trainer can bump this without touching the template
+rest_seconds	int	
+demo_media_id	uuid, FK → media_assets.id, nullable	
+notes	text	
+3.10 workout_logs
+What actually happened — now scoped to the snapshot, not the template, so it's correct regardless of later template edits.
+
+Column	Type	Notes
+id	uuid, PK	
+client_id	uuid, FK → client_profiles.id	
+assignment_exercise_id	uuid, FK → assignment_exercises.id	
+log_date	date	
+actual_sets	int	
+actual_reps	text	
+actual_weight_kg	numeric	
+completed	boolean	default false
+perceived_effort	int, nullable	RPE 1–10
+notes	text	
+created_at	timestamptz	
+3.11 saved_cards
+Pure bookmark — "I want to keep this," not "I'm doing this." Starting to actually train from a public card creates a workout_assignments row instead (or in addition).
+
+Column	Type	Notes
+client_id	uuid, FK → client_profiles.id	
+card_id	uuid, FK → workout_cards.id	
+saved_at	timestamptz	
+PK: (client_id, card_id).
+
+3.12 wearable_connections
+Column	Type	Notes
+id	uuid, PK	
+client_id	uuid, FK → client_profiles.id	
+source	text	healthkit | health_connect | fitbit | garmin | whoop
+credential_reference	text	pointer only — the id of a secret held in Supabase Vault (or an external secrets manager); application code never reads a raw token from this table
+connected_at / last_synced_at	timestamptz	
+3.13 wearable_metrics
+Column	Type	Notes
+id	uuid, PK	
+client_id	uuid, FK → client_profiles.id	
+metric_date	date	
+steps	int	
+heart_rate_avg / heart_rate_resting	int	
+calories_active	int	
+sleep_hours	numeric	
+source	text	
+synced_at	timestamptz	
+Unique: (client_id, metric_date, source).
+
+3.14 media_assets
+Now the canonical target for every *_media_id FK above, rather than raw URL text columns — makes a future CDN migration a one-table change.
+
+Column	Type	Notes
+id	uuid, PK	
+trainer_id	uuid, FK → trainer_profiles.id	
+type	text	exercise_video | card_cover | intro_video
+storage_path	text	
+duration_seconds	int, nullable	
+status	text	processing | ready | failed
+created_at	timestamptz	
+3.15 card_stats — new
+Aggregates kept off the hot workout_cards row, written only by an Edge Function.
+
+Column	Type	Notes
+card_id	uuid, PK, FK → workout_cards.id	
+view_count	int	default 0
+save_count	int	count of saved_cards rows
+follow_count	int	count of workout_assignments where source = self_saved
+completion_count	int	logs marked completed
+share_count	int	
+updated_at	timestamptz	
+3.16 card_reports (moderation)
+Column	Type	Notes
+id	uuid, PK	
+card_id	uuid, FK → workout_cards.id	
+reported_by	uuid, FK → auth.users.id	
+reason	text	
+status	text	open | reviewed | dismissed
+created_at	timestamptz	
+3.17–3.19 Messaging — new
+Replaces folding chat into notifications; the UI already treats Coach/Messages as a first-class tab.
+
+conversations: id, created_at conversation_members: conversation_id, user_id, joined_at messages: id, conversation_id, sender_id (FK auth.users), body, created_at, read_at
+
+3.20 notifications
+Column	Type	Notes
+id	uuid, PK	
+user_id	uuid, FK → auth.users.id	
+type	text	card_assigned | client_completed_workout | card_flagged | message
+payload	jsonb	for type = message, carries {conversation_id} — the message body itself lives in messages, this is just the alert
+read_at	timestamptz, nullable	
+created_at	timestamptz	
+4. Row Level Security — patterns, not just intent
+RLS in Postgres does not auto-inherit through a foreign key — each table needs its own policy, typically checking the parent via EXISTS.
+
+workout_cards (SELECT):
+
+visibility = 'public'
+OR trainer_id = auth.uid()
+OR (visibility = 'gym_only' AND EXISTS (
+      SELECT 1 FROM organization_members om
+      WHERE om.org_id = workout_cards.org_id AND om.user_id = auth.uid() AND om.status = 'active'
+    ))
+INSERT/UPDATE/DELETE: trainer_id = auth.uid() only.
+
+exercises (SELECT) — inherits by checking the parent explicitly:
+
+EXISTS (
+  SELECT 1 FROM workout_cards wc
+  WHERE wc.id = exercises.card_id
+    AND ( wc.visibility = 'public'
+          OR wc.trainer_id = auth.uid()
+          OR EXISTS (SELECT 1 FROM organization_members om
+                     WHERE om.org_id = wc.org_id AND om.user_id = auth.uid() AND om.status = 'active') )
+)
+assignment_exercises / workout_logs follow the same shape, checking up through workout_assignments.client_id = auth.uid() OR workout_assignments.trainer_id = auth.uid().
+
+wearable_metrics / wearable_connections: client_id = auth.uid() only — never exposed to trainers directly (see the trainer-client-dashboard Edge Function in §6.6, which returns an aggregated view instead).
+
+organization_members: readable by any member of the same org_id; writable only by rows where the caller's own membership role is owner or admin.
+
+messages / conversation_members: readable/writable only where auth.uid() has a row in conversation_members for that conversation_id.
+
+5. Storage Buckets (Supabase Storage)
+Bucket	Contents	Access
+avatars	profile photos	public read
+card-covers	referenced by workout_cards.cover_media_id	public if card is public, signed URL otherwise
+exercise-videos-private	referenced by assignment_exercises.demo_media_id / private exercises.demo_media_id	signed URL, RLS-gated
+exercise-videos-public	referenced by public exercises.demo_media_id	serve via CDN (Mux/Cloudflare Stream) at scale, not raw Storage
+progress-photos	client progress photos	private, signed URL, client-owned only
+6. API Documentation
+6.1 Auth
+POST /auth/v1/signup            (role claim → trigger creates trainer_profiles or client_profiles)
+POST /auth/v1/token?grant_type=password
+POST /auth/v1/logout
+6.2 Workout Cards (templates)
+GET   /rest/v1/workout_cards?visibility=eq.public&order=created_at.desc
+GET   /rest/v1/workout_cards?id=eq.{card_id}&select=*,exercises(*)
+POST  /rest/v1/workout_cards                 (trainer only)
+PATCH /rest/v1/workout_cards?id=eq.{card_id}
+6.3 Assignments (the client-facing plan)
+GET  /rest/v1/workout_assignments?client_id=eq.{id}&status=eq.active&select=*,assignment_exercises(*)
+POST /assign-workout-card        (Edge Function — trainer flow, see 6.6)
+POST /follow-public-card         (Edge Function — self-directed flow, see 6.6)
+6.4 Workout Logs
+GET   /rest/v1/workout_logs?client_id=eq.{id}&log_date=gte.{start}&log_date=lte.{end}
+POST  /rest/v1/workout_logs                  (client logs a set, references assignment_exercise_id)
+PATCH /rest/v1/workout_logs?id=eq.{log_id}
+6.5 Discover
+GET    /rest/v1/workout_cards?visibility=eq.public&moderation_status=eq.approved&tags=cs.{strength}
+POST   /rest/v1/saved_cards                  (bookmark only)
+DELETE /rest/v1/saved_cards?card_id=eq.{card_id}&client_id=eq.{id}
+6.6 Edge Functions
+Function	Trigger	Purpose
+assign-workout-card	POST, trainer app	Validates active coaching_relationship, creates workout_assignments (source = trainer_assigned), snapshots exercises into assignment_exercises, notifies client
+follow-public-card	POST, client app ("start this program")	Creates workout_assignments (source = self_saved, trainer_id = null), snapshots exercises, bumps card_stats.follow_count
+sync-wearable-data	Scheduled (4h) + on-demand	Resolves credential_reference via Vault, pulls from HealthKit/Health Connect/OAuth partners, upserts wearable_metrics
+trainer-client-dashboard	GET, trainer app	Aggregated view: adherence %, wearable summary, recent logs — trainers never query raw wearable_metrics directly
+moderate-card	POST, admin only	Updates moderation_status, notifies trainer
+update-card-stats	Triggered on save/follow/log-completed	Increments card_stats counters async, keeps workout_cards itself write-light
+weekly-progress-report	Scheduled, per client	Streaks/PRs → notifications
+6.7 Messaging
+GET  /rest/v1/messages?conversation_id=eq.{id}&order=created_at.asc
+POST /rest/v1/messages                       (RLS checks conversation_members)
+supabase.channel('conversation-{id}')        // Realtime
+6.8 Realtime Channels
+supabase.channel('assignment-{client_id}')   // trainer watches client's live logging
+supabase.channel('conversation-{id}')        // chat
+7. Access Model Recap
+organizations ── organization_members ── auth.users (role: owner/admin/trainer/client)
+                        │
+                 coaching_relationships
+                        │
+                 workout_cards (template)
+                        │
+                   exercises
+                        │
+                 workout_assignments  ← trainer_assigned or self_saved
+                        │
+                 assignment_exercises (snapshot — immutable to later template edits)
+                        │
+                   workout_logs
+8. Decisions Deferred on Purpose (and why)
+Taken from the architecture review — these are real needs, just not MVP-blocking ones:
+
+Full workout_card_versions table. The snapshot-on-assignment pattern in §3.9 already solves the "old client's history shouldn't silently change" problem. Revisit if Discover needs to show a public template's changelog, or trainers need to explicitly branch a card into "v2."
+Full workout_sessions → exercise_logs → set_logs model. Correct long-term shape for rich analytics (rest-timer, per-set RPE trends), but more schema than the current flat workout_logs needs to carry before there's usage data to justify it.
+Video CDN: Mux vs Cloudflare Stream vs raw Supabase Storage for public Discover at scale — unresolved.
+organization_members role permissions matrix — owner/admin/trainer/client are named but their exact write boundaries (can an admin remove a trainer? reassign clients?) need to be spelled out before building gym-admin UI.
+Wearable credential storage mechanism — credential_reference is modeled, but Supabase Vault vs an external secrets manager (e.g., Doppler, AWS Secrets Manager) is still an open choice.
+Rate limiting on public card creation / follow spam — not yet addressed at the DB level.
+9. Habit Tracking
+Workout cards cover training days; habits cover the daily behaviors between sessions (sleep, hydration, protein, steps, no alcohol) that usually decide whether the training actually pays off. Same three-part pattern as workouts: a reusable template, a per-client snapshot instance, and logs.
+
+9.1 habit_templates
+Trainer-authored, reusable. Mirrors workout_cards — same visibility values, same moderation flow if published publicly.
+
+Column	Type	Notes
+id	uuid, PK	
+trainer_id	uuid, FK → trainer_profiles.id	
+org_id	uuid, FK → organizations.id, nullable	
+title / description	text	
+type	text	binary | quantity | wearable_auto
+unit	text, nullable	e.g. glasses, g protein — for quantity type
+default_target_value	numeric, nullable	
+wearable_metric_field	text, nullable	e.g. steps, sleep_hours — for wearable_auto type, matches a wearable_metrics column
+visibility	text	public | private | gym_only
+is_published	boolean	
+moderation_status	text	same values as workout_cards
+created_at	timestamptz	
+9.2 habits
+The per-client instance actually tracked — snapshotted from the template at creation, same reasoning as assignment_exercises: a trainer editing the template later shouldn't rewrite what a client is currently being held to.
+
+Column	Type	Notes
+id	uuid, PK	
+template_id	uuid, FK → habit_templates.id, nullable	null = client made it themselves
+client_id	uuid, FK → client_profiles.id	
+trainer_id	uuid, FK → trainer_profiles.id, nullable	null when self-created
+source	text	trainer_assigned | self_created
+title	text	copied from template at creation
+type / unit / target_value / wearable_metric_field	—	copied from template at creation
+current_streak / best_streak	int	maintained by update-habit-streaks Edge Function, not computed per-request
+status	text	active | archived
+created_at	timestamptz	
+9.3 habit_logs
+Column	Type	Notes
+id	uuid, PK	
+habit_id	uuid, FK → habits.id	
+log_date	date	
+value	numeric, nullable	for quantity type
+completed	boolean	
+source	text	manual | wearable_auto
+created_at	timestamptz	
+Unique: (habit_id, log_date).
+
+9.4 Wearable auto-completion
+sync-wearable-data (§6.6), after upserting wearable_metrics for a day, checks every active habit with a non-null wearable_metric_field against that day's row and writes a habit_logs entry with source = wearable_auto — no separate integration path needed.
+
+9.5 RLS
+Same shape as workout_logs: habits/habit_logs readable and writable by client_id = auth.uid(); trainers get read-only via an EXISTS check against an active coaching_relationships row, identical pattern to §4.
+
+10. Coach/Gym Seat Licensing
+This is the "gym pays for N client seats" model — separate from the marketplace in §11. The key design decision: a coach's real-world clients connect by invite, not by search. Discover is for strangers finding a coach; an invite is for a coach connecting the clients they already have.
+
+10.1 subscriptions
+The seat license itself, owned by either a trainer (independent) or an organization (gym).
+
+Column	Type	Notes
+id	uuid, PK	
+owner_type	text	trainer | organization
+owner_id	uuid	points to trainer_profiles.id or organizations.id depending on owner_type — enforced at the application/Edge Function layer, Postgres can't FK across two tables directly
+plan_tier	text	e.g. starter_50, growth_100
+seat_limit	int	
+seats_used	int	denormalized counter, maintained by a trigger on coaching_relationships insert/delete
+price_inr	numeric	
+billing_period	text	monthly
+current_period_start / current_period_end	timestamptz	
+status	text	active | past_due | canceled
+created_at	timestamptz	
+10.2 invites
+Column	Type	Notes
+id	uuid, PK	
+subscription_id	uuid, FK → subscriptions.id	
+created_by	uuid, FK → auth.users.id	
+code	text, unique	shareable as a link, code, or QR
+max_uses	int, nullable	null = unlimited, still capped by remaining seats
+uses_count	int	
+expires_at	timestamptz, nullable	
+status	text	active | revoked
+created_at	timestamptz	
+10.3 Connection flow — redeem-invite (Edge Function)
+Look up the invite by code; check status, expires_at, uses_count < max_uses
+Look up the subscription; check seats_used < seat_limit — if full, reject with "seats full" and notify the coach/org owner to upgrade
+Create the coaching_relationships row (type = gym if owner_type = organization, else private), setting org_id if applicable
+Increment invites.uses_count and subscriptions.seats_used
+This is also how "Coach A has 20 real clients — how do those 20 people find the right coach" gets solved without search: the coach hands out their code/QR (in person, in a welcome email, printed at the gym desk); redemption is deterministic, not discovery-based.
+
+10.4 Pricing ladder — open decision
+Your example (₹1000/50 seats, ₹2000/100) is linear (₹20/seat flat). The alternative is degressive pricing, more standard for SaaS seat tiers, which rewards committing to a bigger tier upfront:
+
+Tier	Seats	Linear (₹20/seat)	Degressive example
+Starter	50	₹1,000	₹1,000 (₹20/seat)
+Growth	100	₹2,000	₹1,800 (₹18/seat)
+Pro	250	₹5,000	₹3,750 (₹15/seat)
+Either is implementable identically in subscriptions.plan_tier/price_inr — this is a pricing decision, not a schema one.
+
+11. Marketplace — Paid Programs & Trainer Payouts
+This is the second, separate revenue engine: a coach bundles a workout card and habit template(s) into a Program, publishes it to Discover, and clients subscribe directly. This is also the answer to "how does a new client find a coach they don't already know" — Discover becomes real client acquisition, not just a content library.
+
+11.1 programs
+Column	Type	Notes
+id	uuid, PK	
+trainer_id	uuid, FK → trainer_profiles.id	
+org_id	uuid, FK → organizations.id, nullable	
+title / description	text	
+price_inr	numeric	0 = free
+billing_period	text	monthly | one_time
+workout_card_id	uuid, FK → workout_cards.id, nullable	nullable in case a program is habit-only
+is_published	boolean	
+moderation_status	text	same values as workout_cards
+created_at	timestamptz	
+11.2 program_habits (join table)
+program_id, habit_template_id — a program can bundle more than one habit, and a habit template can appear in more than one program.
+
+11.3 program_subscriptions
+Column	Type	Notes
+id	uuid, PK	
+client_id	uuid, FK → client_profiles.id	
+program_id	uuid, FK → programs.id	
+status	text	active | canceled | past_due
+price_paid_inr	numeric	
+started_at / current_period_end	timestamptz	
+On successful payment, an Edge Function creates this row, then internally calls follow-public-card for programs.workout_card_id and creates a habits row for each program_habits entry — each tagged with program_subscription_id so access can be revoked cleanly if the subscription lapses (expire-program-subscriptions, scheduled, sets linked workout_assignments/habits to archived when the subscription is no longer active).
+
+Add program_subscription_id (nullable FK) to workout_assignments and habits to support this.
+
+11.4 payouts
+Column	Type	Notes
+id	uuid, PK	
+trainer_id / org_id	uuid, nullable	whichever earned it
+period_start / period_end	date	
+gross_amount_inr	numeric	sum of program_subscriptions.price_paid_inr for the period
+platform_fee_inr	numeric	
+net_amount_inr	numeric	
+status	text	pending | processing | paid | failed
+paid_at	timestamptz, nullable	
+11.5 Free vs. paid — a framework
+Free: trainer profile, certifications/verified badge, 1–2 public cards, a sampler habit or two — enough to build trust and get discovered.
+Paid: full multi-week structured programs, habit bundles tied to a program, video-demo-rich content.
+You can also tie publishing rights to the seat plan tier (§10) rather than gating purely on content: e.g. Starter = roster tool only, Growth = can publish free public content, Pro = can publish paid Programs at a lower platform fee %. Gives an upsell path beyond raw seat count.
+
+11.6 Platform fee model — yes, this works
+Confirming the mechanic you proposed: platform collects the full client payment, deducts a platform fee %, and pays the remainder to the coach. This is the standard Patreon/Udemy/Gumroad marketplace pattern, not something unusual to build.
+
+Platform fee: typical marketplace range 15–25% — open decision, see §14.
+Payout cadence: monthly is the simpler default for reconciliation load. 15-day is more coach-friendly but roughly doubles payout processing — a common middle ground is monthly payouts with a minimum threshold (e.g. hold and roll over anything under ₹500).
+11.7 RLS — gating paid content
+A paid program's card still needs to be visible in Discover as a listing (title, cover, price) even to non-subscribers, but its exercises should only be readable by someone with access:
+
+-- exercises SELECT, extended for paid gating
+EXISTS (
+  SELECT 1 FROM workout_cards wc
+  WHERE wc.id = exercises.card_id
+    AND ( wc.trainer_id = auth.uid()
+          OR NOT EXISTS (SELECT 1 FROM programs p WHERE p.workout_card_id = wc.id AND p.price_inr > 0)
+          OR EXISTS (
+               SELECT 1 FROM programs p
+               JOIN program_subscriptions ps ON ps.program_id = p.id
+               WHERE p.workout_card_id = wc.id
+                 AND ps.client_id = auth.uid()
+                 AND ps.status = 'active'
+             ) )
+)
+Same pattern extends to program_habits → habit_templates.
+
+11.8 Compliance note — do not skip this
+Splitting a client's payment between the platform and multiple coaches falls under RBI's Payment Aggregator regulations in India — this needs a payment aggregator built for marketplace/split settlement (Razorpay Route, Cashfree Easy Split) rather than custom payout logic, plus GST and TDS handling (Section 194-O applies to e-commerce operators paying sellers). This is a genuine "talk to a CA or fintech consultant before real money moves" item, not something to spec purely at the schema level.
+
+12. Updated Access Model — Full Picture
+organizations ── organization_members ── auth.users (role)
+      │
+ subscriptions ── invites ──(redeem)──► coaching_relationships
+      │                                        │
+      │                                 workout_assignments / habits
+      │                                        │
+      │                                  workout_logs / habit_logs
+      │
+ programs ── program_habits ── habit_templates
+      │
+ program_subscriptions ──(on payment)──► workout_assignments / habits
+      │                                   (tagged program_subscription_id)
+ payouts
+Two independent entry points into the same workout_assignments/habits execution layer: a seat (coach already knows the client, invite-based) or a program purchase (client discovers the coach, payment-based). Logging, streaks, and progress work identically either way.
+
+13. API & Edge Function Additions
+POST /redeem-invite                    (Edge Function — seat consumption + relationship creation)
+GET  /rest/v1/subscriptions?owner_id=eq.{id}
+GET  /rest/v1/invites?subscription_id=eq.{id}
+
+GET  /rest/v1/programs?is_published=eq.true&moderation_status=eq.approved
+POST /subscribe-program                (Edge Function — payment intent, then webhook confirms)
+POST /program-payment-webhook          (Edge Function — gateway webhook, creates program_subscriptions,
+                                         calls follow-public-card + habit creation, tags program_subscription_id)
+
+GET  /rest/v1/habits?client_id=eq.{id}&status=eq.active
+POST /rest/v1/habit_logs
+Edge Function	Trigger	Purpose
+redeem-invite	POST, client app	Validates code, checks seat capacity, creates coaching_relationships, increments counters
+subscribe-program / program-payment-webhook	Client checkout / gateway callback	Creates program_subscriptions, cascades into workout_assignments + habits
+expire-program-subscriptions	Scheduled, daily	Archives assignments/habits when a subscription lapses
+run-payouts	Scheduled, monthly	Aggregates program_subscriptions revenue per trainer/org into payouts, applies platform fee, initiates gateway payout
+update-habit-streaks	Scheduled, daily	Recomputes current_streak/best_streak on habits
+14. Consolidated Open Decisions
+Technical (carried from v2, §8):
+
+Video CDN choice at scale
+organization_members role permission matrix
+Wearable credential storage mechanism (Vault vs. external secrets manager)
+Full version-history / full session-set-log models — deferred by design
+Business (new in v3):
+
+Seat pricing ladder — linear (₹20/seat flat) vs. degressive
+Platform fee % on marketplace program revenue
+Payout cadence — monthly-with-threshold vs. 15-day
+How much free content per coach before a Discover paywall
+Payment aggregator selection and compliance setup (RBI PA rules, GST/TDS) — needs a CA/fintech consultant, not just engineering
