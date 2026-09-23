@@ -8,6 +8,7 @@ import '../../features/assignments/presentation/today_session_screen.dart';
 import '../../features/auth/presentation/auth_provider.dart';
 import '../../features/auth/presentation/email_otp_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/onboarding/presentation/role_select_screen.dart';
 import '../../features/profile/presentation/client_profile_edit_screen.dart';
 import '../../features/profile/presentation/client_profile_screen.dart';
@@ -67,7 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
         branches: [
           StatefulShellBranch(routes: [GoRoute(path: '/client', builder: (context, state) => const TodaySessionScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/client/discover', builder: (context, state) => const ComingSoonScreen(title: 'Discover'))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/client/discover', builder: (context, state) => const DiscoverScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/progress', builder: (context, state) => const ComingSoonScreen(title: 'Progress'))]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/coach', builder: (context, state) => const ComingSoonScreen(title: 'Coach'))]),
           StatefulShellBranch(
