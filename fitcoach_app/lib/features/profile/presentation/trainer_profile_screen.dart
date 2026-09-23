@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/widgets/tag_pill.dart';
 import '../../auth/presentation/auth_provider.dart';
 import 'profile_providers.dart';
 
@@ -46,7 +47,10 @@ class TrainerProfileScreen extends ConsumerWidget {
               if (profile.isVerified) ...[
                 const SizedBox(height: 4),
                 const Center(
-                  child: Chip(avatar: Icon(Icons.verified, size: 18), label: Text('Verified')),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [Icon(Icons.verified, size: 16), SizedBox(width: 4), TagPill('Verified')],
+                  ),
                 ),
               ],
               const SizedBox(height: 24),
@@ -59,7 +63,7 @@ class TrainerProfileScreen extends ConsumerWidget {
               if (profile.certifications.isNotEmpty) ...[
                 const Text('Certifications', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final c in profile.certifications) Chip(label: Text(c))]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final c in profile.certifications) TagPill(c)]),
                 const SizedBox(height: 16),
               ],
               const SizedBox(height: 8),

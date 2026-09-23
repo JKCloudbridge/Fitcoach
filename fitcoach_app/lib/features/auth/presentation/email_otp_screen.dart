@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import 'auth_provider.dart';
 
 /// Passed via GoRoute's `state.extra` as a typed argument, same convention
@@ -104,7 +105,7 @@ class _EmailOtpScreenState extends ConsumerState<EmailOtpScreen> {
                 FilledButton(
                   onPressed: busy ? null : _verify,
                   child: _verifying
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
                       : const Text('Verify'),
                 ),
                 const SizedBox(height: 8),
@@ -114,7 +115,7 @@ class _EmailOtpScreenState extends ConsumerState<EmailOtpScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral), textAlign: TextAlign.center),
                 ],
               ],
             ),

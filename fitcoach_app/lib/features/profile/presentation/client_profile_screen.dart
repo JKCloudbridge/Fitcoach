@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../shared/widgets/tag_pill.dart';
 import '../../auth/presentation/auth_provider.dart';
 import 'profile_providers.dart';
 
@@ -52,7 +53,7 @@ class ClientProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 const Text('Goals', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Wrap(spacing: 8, runSpacing: 8, children: [for (final g in profile.goals) Chip(label: Text(g))]),
+                Wrap(spacing: 8, runSpacing: 8, children: [for (final g in profile.goals) TagPill(g)]),
               ],
               const SizedBox(height: 24),
               FilledButton.icon(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import 'auth_provider.dart';
 import 'email_otp_screen.dart';
 
@@ -90,7 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 FilledButton.icon(
                   onPressed: busy ? null : _signInWithGoogle,
                   icon: _signingInWithGoogle
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
                       : const Icon(Icons.g_mobiledata),
                   label: const Text('Continue with Google'),
                 ),
@@ -118,7 +119,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral), textAlign: TextAlign.center),
                 ],
               ],
             ),

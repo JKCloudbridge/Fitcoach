@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "imports": {
+    "npm:hono": "npm:hono@^4.6.0",
+    "npm:hono/": "npm:hono@^4.6.0/",
+    "npm:zod": "npm:zod@^3.23.0",
+    "npm:@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
+    "npm:@supabase/supabase-js": "npm:@supabase/supabase-js@^2.45.0"
+  }
+}
