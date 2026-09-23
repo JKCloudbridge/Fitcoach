@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/assignments/presentation/today_session_screen.dart';
 import '../../features/auth/presentation/auth_provider.dart';
 import '../../features/auth/presentation/email_otp_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
@@ -12,6 +13,8 @@ import '../../features/profile/presentation/client_profile_edit_screen.dart';
 import '../../features/profile/presentation/client_profile_screen.dart';
 import '../../features/profile/presentation/trainer_profile_edit_screen.dart';
 import '../../features/profile/presentation/trainer_profile_screen.dart';
+import '../../features/workout_cards/presentation/build_session_screen.dart';
+import '../../features/workout_cards/presentation/cards_list_screen.dart';
 import '../../shared/widgets/coming_soon_screen.dart';
 import '../../shared/widgets/role_shell.dart';
 import 'redirect_logic.dart';
@@ -63,7 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ],
         ),
         branches: [
-          StatefulShellBranch(routes: [GoRoute(path: '/client', builder: (context, state) => const ComingSoonScreen(title: 'Today'))]),
+          StatefulShellBranch(routes: [GoRoute(path: '/client', builder: (context, state) => const TodaySessionScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/discover', builder: (context, state) => const ComingSoonScreen(title: 'Discover'))]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/progress', builder: (context, state) => const ComingSoonScreen(title: 'Progress'))]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/coach', builder: (context, state) => const ComingSoonScreen(title: 'Coach'))]),
@@ -92,8 +95,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
         branches: [
           StatefulShellBranch(routes: [GoRoute(path: '/trainer', builder: (context, state) => const ComingSoonScreen(title: 'Clients'))]),
-          StatefulShellBranch(routes: [GoRoute(path: '/trainer/cards', builder: (context, state) => const ComingSoonScreen(title: 'My Cards'))]),
-          StatefulShellBranch(routes: [GoRoute(path: '/trainer/build', builder: (context, state) => const ComingSoonScreen(title: 'Build'))]),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/trainer/cards',
+                builder: (context, state) => const CardsListScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':cardId',
+                    builder: (context, state) => BuildSessionScreen(cardId: state.pathParameters['cardId']),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(routes: [GoRoute(path: '/trainer/build', builder: (context, state) => const BuildSessionScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/trainer/messages', builder: (context, state) => const ComingSoonScreen(title: 'Messages'))]),
           StatefulShellBranch(
             routes: [

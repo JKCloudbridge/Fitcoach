@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../../profile/data/profile_repository.dart';
 
@@ -107,12 +108,12 @@ class _RoleSelectScreenState extends ConsumerState<RoleSelectScreen> {
                 FilledButton(
                   onPressed: _submitting ? null : _submit,
                   child: _submitting
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
                       : const Text('Continue'),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral), textAlign: TextAlign.center),
                 ],
               ],
             ),
@@ -123,6 +124,12 @@ class _RoleSelectScreenState extends ConsumerState<RoleSelectScreen> {
   }
 }
 
+/// Not a literal concept mockup (role-select isn't one of the phone
+/// screens), but built from its established visual language: a
+/// `.exercise-card`-style container (card surface, stone border, 16px
+/// radius) that switches to a lime border + lime check when selected --
+/// the same "lime = the chosen/active one" convention the concept uses for
+/// `.dot-check.done`, the active tab, and `.switch.on`.
 class _RoleCard extends StatelessWidget {
   const _RoleCard({required this.icon, required this.title, required this.subtitle, required this.selected, required this.onTap});
 
@@ -134,31 +141,37 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: selected ? scheme.primary : scheme.outlineVariant, width: selected ? 2 : 1),
-          borderRadius: BorderRadius.circular(12),
-          color: selected ? scheme.primaryContainer.withValues(alpha: 0.3) : null,
+          color: theme.colorScheme.surface,
+          border: Border.all(color: selected ? AppColors.lime : theme.colorScheme.outline, width: selected ? 2 : 1),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 32, color: selected ? scheme.primary : null),
+            Icon(icon, size: 32),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  Text(subtitle, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
-            if (selected) Icon(Icons.check_circle, color: scheme.primary),
+            if (selected)
+              Container(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
+                child: const Icon(Icons.check, size: 16, color: AppColors.ink),
+              ),
           ],
         ),
       ),

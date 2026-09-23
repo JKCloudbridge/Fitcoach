@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../data/profile_models.dart';
 import '../data/profile_repository.dart';
@@ -149,12 +150,12 @@ class _ClientProfileEditScreenState extends ConsumerState<ClientProfileEditScree
                 FilledButton(
                   onPressed: _saving ? null : _save,
                   child: _saving
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.ink))
                       : const Text('Save'),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
-                  Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                  Text(_error!, style: const TextStyle(color: AppColors.coral), textAlign: TextAlign.center),
                 ],
               ],
             ),

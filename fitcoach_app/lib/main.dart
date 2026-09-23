@@ -42,6 +42,8 @@ class FitCoachApp extends ConsumerWidget {
       title: 'FitCoach',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: router,
     );
   }
