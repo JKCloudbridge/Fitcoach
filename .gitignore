@@ -1,0 +1,4 @@
+# Claude Code's local session config and project instructions -- kept local,
+# not pushed to the shared repo.
+.claude/
+CLAUDE.md
