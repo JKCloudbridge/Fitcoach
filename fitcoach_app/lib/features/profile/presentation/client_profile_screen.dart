@@ -69,6 +69,12 @@ class ClientProfileScreen extends ConsumerWidget {
                 icon: const Icon(Icons.qr_code_outlined),
                 label: const Text('Join with a code'),
               ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/client/profile/my-programs'),
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text('My Programs'),
+              ),
             ],
           );
         },

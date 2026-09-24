@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../programs/presentation/programs_list_screen.dart';
 import '../data/discover_models.dart';
 import '../data/discover_repository.dart';
 import '../utils/filter_discover_cards.dart';
@@ -14,6 +15,11 @@ const _filters = [
   ('strength', 'Strength'),
   ('mobility', 'Mobility'),
   ('conditioning', 'Conditioning'),
+];
+
+const _contentModes = [
+  (value: 'cards', label: 'Free Cards'),
+  (value: 'programs', label: 'Programs'),
 ];
 
 /// Client "Discover" -- public workout_cards, per the UI concept's
@@ -31,6 +37,12 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   String _filter = 'all';
   bool _savedOnly = false;
+  // Milestone 8 -- Discover now toggles between the existing free-card
+  // library and the paid Programs marketplace (§11), same "fold a new
+  // content type into an existing tab via SegmentedButton" convention
+  // TrainerLibraryScreen/TrainerBuildScreen already use for cards vs. habit
+  // templates, rather than adding a new bottom-nav destination.
+  String _contentMode = 'cards';
 
   Future<void> _toggleSave(DiscoverCard card, bool currentlySaved) async {
     final clientId = ref.read(authProvider).userId;
@@ -54,64 +66,88 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final cardsAsync = ref.watch(discoverCardsProvider);
     final savedIds = ref.watch(savedCardIdsProvider).maybeWhen(data: (ids) => ids, orElse: () => const <String>{});
 
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Discover', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text('Programs published by coaches on FitCoach'),
+          const SizedBox(height: 12),
+          SegmentedButton<String>(
+            segments: [for (final option in _contentModes) ButtonSegment(value: option.value, label: Text(option.label))],
+            selected: {_contentMode},
+            onSelectionChanged: (selection) => setState(() => _contentMode = selection.first),
+          ),
+        ],
+      ),
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Discover')),
-      body: cardsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Could not load Discover: $error')),
-        data: (cards) {
-          final byFilter = filterDiscoverCards(cards, _filter);
-          final shown = _savedOnly ? byFilter.where((card) => savedIds.contains(card.id)).toList() : byFilter;
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(discoverCardsProvider);
-              ref.invalidate(savedCardIdsProvider);
-            },
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const Text('Public library', style: TextStyle(fontSize: 12)),
-                const Text('Discover', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const Text('Programs published by coaches on FitCoach'),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 7,
-                  children: [
-                    for (final (key, label) in _filters)
-                      ChoiceChip(label: Text(label), selected: _filter == key, onSelected: (_) => setState(() => _filter = key)),
-                    ChoiceChip(
-                      label: const Text('Saved'),
-                      avatar: const Icon(Icons.bookmark, size: 14),
-                      selected: _savedOnly,
-                      onSelected: (value) => setState(() => _savedOnly = value),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (cards.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Text('No public cards yet — check back soon.', textAlign: TextAlign.center),
-                  )
-                else if (shown.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Text('Nothing matches this filter yet.', textAlign: TextAlign.center),
-                  )
-                else
-                  for (final card in shown)
-                    _DiscCardRow(
-                      card: card,
-                      isSaved: savedIds.contains(card.id),
-                      onToggleSave: () => _toggleSave(card, savedIds.contains(card.id)),
-                      onTap: () => showCardDetailSheet(context, card: card),
-                    ),
-              ],
-            ),
-          );
-        },
+      body: Column(
+        children: [
+          header,
+          Expanded(
+            child: _contentMode == 'programs' ? const ProgramsListScreen(embedded: true) : _buildCardsList(cardsAsync, savedIds),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildCardsList(AsyncValue<List<DiscoverCard>> cardsAsync, Set<String> savedIds) {
+    return cardsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => Center(child: Text('Could not load Discover: $error')),
+      data: (cards) {
+        final byFilter = filterDiscoverCards(cards, _filter);
+        final shown = _savedOnly ? byFilter.where((card) => savedIds.contains(card.id)).toList() : byFilter;
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(discoverCardsProvider);
+            ref.invalidate(savedCardIdsProvider);
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Wrap(
+                spacing: 7,
+                children: [
+                  for (final (key, label) in _filters)
+                    ChoiceChip(label: Text(label), selected: _filter == key, onSelected: (_) => setState(() => _filter = key)),
+                  ChoiceChip(
+                    label: const Text('Saved'),
+                    avatar: const Icon(Icons.bookmark, size: 14),
+                    selected: _savedOnly,
+                    onSelected: (value) => setState(() => _savedOnly = value),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (cards.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Text('No public cards yet — check back soon.', textAlign: TextAlign.center),
+                )
+              else if (shown.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Text('Nothing matches this filter yet.', textAlign: TextAlign.center),
+                )
+              else
+                for (final card in shown)
+                  _DiscCardRow(
+                    card: card,
+                    isSaved: savedIds.contains(card.id),
+                    onToggleSave: () => _toggleSave(card, savedIds.contains(card.id)),
+                    onTap: () => showCardDetailSheet(context, card: card),
+                  ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

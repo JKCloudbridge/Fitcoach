@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
+import '../../programs/presentation/build_program_screen.dart';
 import '../../workout_cards/presentation/build_session_screen.dart';
 import 'build_habit_template_screen.dart';
 
 const _buildOptions = [
   (value: 'card', label: 'Workout Card'),
   (value: 'habit', label: 'Habit Template'),
+  (value: 'program', label: 'Program'),
 ];
 
 /// The trainer's "Build" tab, now toggling between building a new
-/// workout_cards row and a new habit_templates row -- same fold-in as
-/// TrainerLibraryScreen. Only covers the *create* case; editing an existing
-/// card or template is reached through its own pushed route
-/// (`/trainer/cards/:cardId` or `/trainer/cards/templates/:templateId`),
+/// workout_cards row, a new habit_templates row, and (Milestone 8) a new
+/// programs row -- same fold-in as TrainerLibraryScreen. Only covers the
+/// *create* case; editing an existing card/template/program is reached
+/// through its own pushed route (`/trainer/cards/:cardId`,
+/// `/trainer/cards/templates/:templateId`, `/trainer/cards/programs/:programId`),
 /// each with its own AppBar, unaffected by this toggle.
 class TrainerBuildScreen extends StatefulWidget {
   const TrainerBuildScreen({super.key});
@@ -41,7 +44,11 @@ class _TrainerBuildScreenState extends State<TrainerBuildScreen> {
           ),
         ),
       ),
-      body: _mode == 'card' ? const BuildSessionScreen(embedded: true) : const BuildHabitTemplateScreen(embedded: true),
+      body: switch (_mode) {
+        'card' => const BuildSessionScreen(embedded: true),
+        'habit' => const BuildHabitTemplateScreen(embedded: true),
+        _ => const BuildProgramScreen(embedded: true),
+      },
     );
   }
 }

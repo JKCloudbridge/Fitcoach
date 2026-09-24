@@ -19,6 +19,8 @@ import '../../features/messaging/presentation/conversations_list_screen.dart';
 import '../../features/notifications/presentation/notification_bell.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/role_select_screen.dart';
+import '../../features/programs/presentation/build_program_screen.dart';
+import '../../features/programs/presentation/my_programs_screen.dart';
 import '../../features/progress/presentation/progress_screen.dart';
 import '../../features/profile/presentation/client_profile_edit_screen.dart';
 import '../../features/profile/presentation/client_profile_screen.dart';
@@ -105,6 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(path: 'edit', builder: (context, state) => const ClientProfileEditScreen()),
                   GoRoute(path: 'redeem-invite', builder: (context, state) => const RedeemInviteScreen()),
+                  GoRoute(path: 'my-programs', builder: (context, state) => const MyProgramsScreen()),
                 ],
               ),
             ],
@@ -145,6 +148,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'templates/:templateId',
                     builder: (context, state) => BuildHabitTemplateScreen(templateId: state.pathParameters['templateId']),
+                  ),
+                  GoRoute(
+                    path: 'programs/:programId',
+                    builder: (context, state) => BuildProgramScreen(programId: state.pathParameters['programId']),
                   ),
                 ],
               ),
