@@ -5,15 +5,16 @@ import 'package:flutter/material.dart';
 /// scope for Milestones 1-2 per the project's own instructions) -- proves
 /// the tab's navigation destination exists without building the feature.
 class ComingSoonScreen extends StatelessWidget {
-  const ComingSoonScreen({super.key, required this.title, this.subtitle});
+  const ComingSoonScreen({super.key, required this.title, this.subtitle, this.actions});
 
   final String title;
   final String? subtitle;
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: Text(title), actions: actions),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

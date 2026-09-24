@@ -12,6 +12,10 @@ import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/habit_templates/presentation/build_habit_template_screen.dart';
 import '../../features/habit_templates/presentation/trainer_build_screen.dart';
 import '../../features/habit_templates/presentation/trainer_library_screen.dart';
+import '../../features/messaging/presentation/conversation_thread_screen.dart';
+import '../../features/messaging/presentation/conversations_list_screen.dart';
+import '../../features/notifications/presentation/notification_bell.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/role_select_screen.dart';
 import '../../features/progress/presentation/progress_screen.dart';
 import '../../features/profile/presentation/client_profile_edit_screen.dart';
@@ -58,6 +62,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(path: '/onboarding/role-select', builder: (context, state) => const RoleSelectScreen()),
 
+      // Pushed from NotificationBell -- outside both shells since it's
+      // reachable from either one.
+      GoRoute(path: '/notifications', builder: (context, state) => const NotificationsScreen()),
+
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => RoleShell(
           navigationShell: navigationShell,
@@ -73,7 +81,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [GoRoute(path: '/client', builder: (context, state) => const TodaySessionScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/discover', builder: (context, state) => const DiscoverScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/client/progress', builder: (context, state) => const ProgressScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/client/coach', builder: (context, state) => const ComingSoonScreen(title: 'Coach'))]),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/client/coach',
+                builder: (context, state) => const ConversationsListScreen(title: 'Coach', basePath: '/client/coach'),
+                routes: [
+                  GoRoute(
+                    path: ':conversationId',
+                    builder: (context, state) => ConversationThreadScreen(conversationId: state.pathParameters['conversationId']!),
+                  ),
+                ],
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -98,7 +119,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           ],
         ),
         branches: [
-          StatefulShellBranch(routes: [GoRoute(path: '/trainer', builder: (context, state) => const ComingSoonScreen(title: 'Clients'))]),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/trainer',
+                builder: (context, state) => const ComingSoonScreen(title: 'Clients', actions: [NotificationBell()]),
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -118,7 +146,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(routes: [GoRoute(path: '/trainer/build', builder: (context, state) => const TrainerBuildScreen())]),
-          StatefulShellBranch(routes: [GoRoute(path: '/trainer/messages', builder: (context, state) => const ComingSoonScreen(title: 'Messages'))]),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/trainer/messages',
+                builder: (context, state) => const ConversationsListScreen(title: 'Messages', basePath: '/trainer/messages'),
+                routes: [
+                  GoRoute(
+                    path: ':conversationId',
+                    builder: (context, state) => ConversationThreadScreen(conversationId: state.pathParameters['conversationId']!),
+                  ),
+                ],
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../habits/presentation/habits_providers.dart';
 import '../../habits/presentation/today_habits_section.dart';
+import '../../notifications/presentation/notification_bell.dart';
 import '../../workout_logs/data/workout_log_models.dart';
 import '../../workout_logs/presentation/log_set_sheet.dart';
 import '../data/assignment_models.dart';
@@ -26,7 +27,7 @@ class TodaySessionScreen extends ConsumerWidget {
     final logsAsync = ref.watch(todayLogsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Today')),
+      appBar: AppBar(title: const Text('Today'), actions: const [NotificationBell()]),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(activeAssignmentProvider);

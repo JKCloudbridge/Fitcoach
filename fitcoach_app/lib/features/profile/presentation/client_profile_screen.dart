@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/widgets/tag_pill.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../../notifications/presentation/notification_bell.dart';
 import 'profile_providers.dart';
 
 class ClientProfileScreen extends ConsumerWidget {
@@ -18,6 +19,7 @@ class ClientProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
