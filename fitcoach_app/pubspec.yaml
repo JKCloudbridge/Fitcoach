@@ -68,6 +68,11 @@ dependencies:
   form_builder_validators: ^11.3.0
   # Milestone 1 -- date formatting on the client profile view screen
   intl: ^0.20.2
+  # Milestone 4 -- weekly adherence bar chart on the client Progress screen.
+  # Verified live against pub.dev before pinning (this project's standing
+  # rule): 1.2.0 is current as of this milestone, SDK constraint >=3.6.2
+  # <4.0.0, compatible with this project's ^3.12.2 pin.
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

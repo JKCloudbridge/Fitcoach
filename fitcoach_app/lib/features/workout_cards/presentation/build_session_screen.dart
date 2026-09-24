@@ -75,9 +75,16 @@ class _ExerciseRow {
 /// illustrative UX only -- the real form uses the schema's separate
 /// sets/reps/weight_kg/rest_seconds columns).
 class BuildSessionScreen extends ConsumerStatefulWidget {
-  const BuildSessionScreen({super.key, this.cardId});
+  const BuildSessionScreen({super.key, this.cardId, this.embedded = false});
 
   final String? cardId;
+
+  /// True when a parent screen already provides the Scaffold + AppBar --
+  /// only meaningful for the create case (cardId == null); Milestone 4.5's
+  /// TrainerBuildScreen embeds this alongside BuildHabitTemplateScreen
+  /// behind a toggle. Defaults to false so `/trainer/build`'s existing
+  /// standalone behavior is unchanged.
+  final bool embedded;
 
   @override
   ConsumerState<BuildSessionScreen> createState() => _BuildSessionScreenState();
@@ -323,6 +330,7 @@ class _BuildSessionScreenState extends ConsumerState<BuildSessionScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_isEditing) {
+      if (widget.embedded) return _buildForm();
       return Scaffold(appBar: AppBar(title: const Text('Build')), body: _buildForm());
     }
 
