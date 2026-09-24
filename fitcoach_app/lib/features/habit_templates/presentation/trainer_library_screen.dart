@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../programs/presentation/trainer_programs_list_screen.dart';
 import '../../workout_cards/presentation/cards_list_screen.dart';
 import 'habit_templates_list_screen.dart';
 
 const _libraryOptions = [
   (value: 'cards', label: 'Workout Cards'),
   (value: 'habits', label: 'Habits'),
+  (value: 'programs', label: 'Programs'),
 ];
 
-/// The trainer's "My Cards" tab, now toggling between workout_cards and
-/// habit_templates -- per the user's own answer when asked where the
-/// trainer habit-template builder should live: folded into the existing
-/// tabs via a toggle, rather than a new bottom-nav destination.
-/// CardsListScreen itself is untouched; this just wraps it alongside its new
-/// habit-template sibling.
+/// The trainer's "My Cards" tab, now toggling between workout_cards,
+/// habit_templates, and (Milestone 8) programs -- per the user's own answer
+/// when asked where the trainer habit-template builder should live: folded
+/// into the existing tabs via a toggle, rather than a new bottom-nav
+/// destination. Programs follows the exact same fold-in for the same reason.
+/// CardsListScreen itself is untouched; this just wraps it alongside its
+/// habit-template and program siblings.
 class TrainerLibraryScreen extends StatefulWidget {
   const TrainerLibraryScreen({super.key});
 
@@ -41,7 +44,11 @@ class _TrainerLibraryScreenState extends State<TrainerLibraryScreen> {
           ),
         ),
       ),
-      body: _mode == 'cards' ? const CardsListScreen(embedded: true) : const HabitTemplatesListScreen(),
+      body: switch (_mode) {
+        'cards' => const CardsListScreen(embedded: true),
+        'habits' => const HabitTemplatesListScreen(),
+        _ => const TrainerProgramsListScreen(embedded: true),
+      },
     );
   }
 }

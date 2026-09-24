@@ -43,3 +43,20 @@ export const requireRole = (...roles: Array<"trainer" | "client">) =>
     }
     await next();
   });
+
+// Milestone 8 -- gates a route to the service-role key only, for scheduled/
+// admin routes (programs-api's expire-program-subscriptions, run-payouts)
+// that Supabase Cron (or a human, manually) invokes directly rather than a
+// signed-in trainer/client -- authMiddleware above can't apply to these,
+// since auth.getUser() rejects a service-role key outright (it isn't a user
+// JWT). Compares the bearer token to this project's own service-role key
+// rather than decoding it, same "the key itself is the credential" shape
+// Supabase Cron's own pg_net invocations use.
+export const requireServiceRole = createMiddleware(async (c, next) => {
+  const token = c.req.header("Authorization")?.replace("Bearer ", "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!token || !serviceKey || token !== serviceKey) {
+    return c.json({ error: { code: "FORBIDDEN", message: "Service-role access only" } }, 403);
+  }
+  await next();
+});
