@@ -74,6 +74,12 @@ class TrainerProfileScreen extends ConsumerWidget {
                 icon: const Icon(Icons.edit),
                 label: const Text('Edit profile'),
               ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/trainer/profile/subscription'),
+                icon: const Icon(Icons.confirmation_number_outlined),
+                label: const Text('Seats & invites'),
+              ),
             ],
           );
         },

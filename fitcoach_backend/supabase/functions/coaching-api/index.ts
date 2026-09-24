@@ -1,19 +1,15 @@
-// coaching-api -- per CLAUDE.md's hybrid backend pattern. First route in this
-// function: start-conversation (Milestone 6), the one messaging write that
-// can't be plain RLS (see migration 018's header note -- bootstrapping a
-// conversation_members row for someone else has no existing membership row to
-// authorize itself against, and it needs to validate an active
-// coaching_relationship first anyway). Reading a trainer's own
+// coaching-api -- per CLAUDE.md's hybrid backend pattern. Two routes:
+// start-conversation (Milestone 6) and redeem-invite (Milestone 7), the two
+// coaching-relationship writes that can't be plain RLS (see migration 018's
+// and migration 022's header notes). Reading a trainer's own
 // coaching_relationships stays a direct RLS read from the app (see
-// coaching_relationships_repository.dart) -- redeem-invite and the rest of
-// this function's eventual routes are Milestone 7's gym-seat work, not built
-// yet.
+// coaching_relationships_repository.dart).
 import { Hono } from "npm:hono";
 import { zValidator } from "npm:@hono/zod-validator";
 import { z } from "npm:zod";
 import type { ContentfulStatusCode } from "npm:hono/utils/http-status";
 
-import { type AuthEnv, authMiddleware } from "../_shared/auth.ts";
+import { type AuthEnv, authMiddleware, requireRole } from "../_shared/auth.ts";
 import { errorResponse, mapRpcError } from "../_shared/errors.ts";
 import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 
@@ -50,6 +46,49 @@ app.post(
     }
 
     return c.json({ data: { conversationId: data as string } }, 201);
+  },
+);
+
+const redeemInviteSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((v) => v.toUpperCase()),
+});
+
+const REDEEM_INVITE_ERRORS: Record<string, { status: ContentfulStatusCode; message: string }> = {
+  CLIENT_NOT_FOUND: { status: 404, message: "Client profile not found" },
+  INVITE_NOT_FOUND: { status: 404, message: "That invite code doesn't exist" },
+  INVITE_REVOKED: { status: 409, message: "This invite has been revoked" },
+  INVITE_EXPIRED: { status: 409, message: "This invite has expired" },
+  INVITE_MAX_USES_REACHED: { status: 409, message: "This invite has already reached its maximum number of uses" },
+  SUBSCRIPTION_INACTIVE: { status: 409, message: "This coach/gym's subscription isn't active right now" },
+  SEATS_FULL: { status: 409, message: "This coach/gym has no seats left -- ask them to upgrade their plan" },
+  INVITE_CREATOR_NOT_A_TRAINER: { status: 409, message: "This invite can't be redeemed right now -- contact the gym" },
+  ALREADY_CONNECTED: { status: 409, message: "You're already connected with this coach" },
+};
+
+// Client only -- §13 lists this as "POST, client app". A trainer/org side
+// never redeems its own invite.
+app.post(
+  "/redeem-invite",
+  requireRole("client"),
+  zValidator("json", redeemInviteSchema),
+  async (c) => {
+    const user = c.get("user");
+    const body = c.req.valid("json");
+
+    const { data, error } = await supabaseAdmin.rpc("redeem_invite", {
+      p_client_id: user.id,
+      p_code: body.code,
+    });
+
+    if (error) {
+      return mapRpcError(c, error, REDEEM_INVITE_ERRORS);
+    }
+
+    return c.json({ data: { relationshipId: data as string } }, 201);
   },
 );
 

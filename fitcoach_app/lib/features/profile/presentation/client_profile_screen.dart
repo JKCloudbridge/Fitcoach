@@ -63,6 +63,12 @@ class ClientProfileScreen extends ConsumerWidget {
                 icon: const Icon(Icons.edit),
                 label: const Text('Edit profile'),
               ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/client/profile/redeem-invite'),
+                icon: const Icon(Icons.qr_code_outlined),
+                label: const Text('Join with a code'),
+              ),
             ],
           );
         },

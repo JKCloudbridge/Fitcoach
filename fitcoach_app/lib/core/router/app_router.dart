@@ -9,6 +9,8 @@ import '../../features/auth/presentation/auth_provider.dart';
 import '../../features/auth/presentation/email_otp_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/discover/presentation/discover_screen.dart';
+import '../../features/gym_seats/presentation/redeem_invite_screen.dart';
+import '../../features/gym_seats/presentation/subscription_screen.dart';
 import '../../features/habit_templates/presentation/build_habit_template_screen.dart';
 import '../../features/habit_templates/presentation/trainer_build_screen.dart';
 import '../../features/habit_templates/presentation/trainer_library_screen.dart';
@@ -100,7 +102,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/client/profile',
                 builder: (context, state) => const ClientProfileScreen(),
-                routes: [GoRoute(path: 'edit', builder: (context, state) => const ClientProfileEditScreen())],
+                routes: [
+                  GoRoute(path: 'edit', builder: (context, state) => const ClientProfileEditScreen()),
+                  GoRoute(path: 'redeem-invite', builder: (context, state) => const RedeemInviteScreen()),
+                ],
               ),
             ],
           ),
@@ -165,7 +170,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/trainer/profile',
                 builder: (context, state) => const TrainerProfileScreen(),
-                routes: [GoRoute(path: 'edit', builder: (context, state) => const TrainerProfileEditScreen())],
+                routes: [
+                  GoRoute(path: 'edit', builder: (context, state) => const TrainerProfileEditScreen()),
+                  GoRoute(path: 'subscription', builder: (context, state) => const SubscriptionScreen()),
+                ],
               ),
             ],
           ),
